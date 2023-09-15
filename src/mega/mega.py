@@ -152,7 +152,7 @@ class Mega:
 
     @retry(retry=retry_if_exception_type(RuntimeError),
            wait=wait_exponential(multiplier=2, min=2, max=60))
-    def _api_request(self, data):
+    def _api_request(self, data, max_retries=5, delay=0.5):
         params = {'id': self.sequence_num}
         self.sequence_num += 1
 
@@ -164,17 +164,28 @@ class Mega:
             data = [data]
 
         url = f'{self.schema}://g.api.{self.api_domain}/cs'
-        response = requests.post(
-            url,
-            params=params,
-            json=data,
-            timeout=self.timeout,
-        )
-        json_resp = response.json()
+
+        for attempt in range(max_retries):
+            response = requests.post(
+                url,
+                params=params,
+                json=data,
+                timeout=self.timeout,
+            )
+
+            try:
+                json_resp = response.json()
+                break  # Break out of the loop if successful
+            except requests.exceptions.JSONDecodeError:
+                print(f"Failed to parse JSON on attempt {attempt + 1}. Retrying in {delay} seconds...")
+                time.sleep(delay)
+                if attempt == max_retries - 1:  # On last attempt
+                    print("Max retries reached. Raising exception.")
+                    raise
+
         try:
             if isinstance(json_resp, list):
-                int_resp = json_resp[0] if isinstance(json_resp[0],
-                                                      int) else None
+                int_resp = json_resp[0] if isinstance(json_resp[0], int) else None
             elif isinstance(json_resp, int):
                 int_resp = json_resp
         except IndexError:
