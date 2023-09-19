@@ -15,6 +15,7 @@ import shutil
 
 import requests
 import tqdm
+import time
 
 from tenacity import retry, wait_exponential, retry_if_exception_type
 
